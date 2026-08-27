@@ -6,8 +6,9 @@ from telegram import Bot, Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # ===== تنظیمات =====
-TOKEN = os.environ.get("BOT_TOKEN")  # توکن رو از متغیر محیطی می‌خونه
-ADMIN_IDS = [8518256437]  # آیدی عددی خودت رو اینجا بذار
+# برای تست، توکن رو مستقیم اینجا می‌ذاریم تا خطای InvalidToken حل بشه
+TOKEN = "8844239608:AAHszuQ2AFaAW3T5l2rU8XuHyBFsNq7asPA"
+ADMIN_IDS = [8518256437]  # آیدی عددی خودت
 # ===================
 
 app = Flask(__name__)
@@ -87,8 +88,8 @@ def health():
 
 # ===== اجرا =====
 if __name__ == "__main__":
-    # تنظیم Webhook
-    WEBHOOK_URL = f"https://your-bot.onrender.com/"  # <-- بعداً این رو عوض می‌کنی
+    # تنظیم Webhook (این آدرس رو بعد از دیپلوی عوض کن)
+    WEBHOOK_URL = "https://your-bot.onrender.com/"  # <-- بعداً این رو با لینک واقعی Render عوض کن
     bot.set_webhook(WEBHOOK_URL)
     print("🤖 ربات روشن شد!")
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
