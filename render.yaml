@@ -5,6 +5,8 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: python bot.py
     plan: free
+    runtime:
+      version: 3.11
     envVars:
       - key: BOT_TOKEN
         sync: false
