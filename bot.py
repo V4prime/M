@@ -6,9 +6,8 @@ from telegram import Bot, Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # ===== تنظیمات =====
-# برای تست، توکن رو مستقیم اینجا می‌ذاریم تا خطای InvalidToken حل بشه
 TOKEN = "8844239608:AAHszuQ2AFaAW3T5l2rU8XuHyBFsNq7asPA"
-ADMIN_IDS = [8518256437]  # آیدی عددی خودت
+ADMIN_IDS = [8518256437]
 # ===================
 
 app = Flask(__name__)
@@ -17,7 +16,6 @@ application = Application.builder().token(TOKEN).build()
 
 file_storage = {}
 
-# ===== دستورات ربات =====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🎬 سلام! ربات آپلودر اختصاصی.\n"
@@ -70,12 +68,10 @@ async def handle_start_with_code(update: Update, context: ContextTypes.DEFAULT_T
     except:
         pass
 
-# ===== ثبت هندلرها =====
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("start", handle_start_with_code))
 application.add_handler(MessageHandler(filters.VIDEO | filters.Document.ALL | filters.PHOTO, handle_file))
 
-# ===== Webhook =====
 @app.route("/", methods=["POST"])
 async def webhook():
     update = Update.de_json(request.get_json(), bot)
@@ -86,10 +82,8 @@ async def webhook():
 def health():
     return "Bot is running!", 200
 
-# ===== اجرا =====
 if __name__ == "__main__":
-    # تنظیم Webhook (این آدرس رو بعد از دیپلوی عوض کن)
-    WEBHOOK_URL = "https://your-bot.onrender.com/"  # <-- بعداً این رو با لینک واقعی Render عوض کن
+    WEBHOOK_URL = "https://your-bot.onrender.com/"
     bot.set_webhook(WEBHOOK_URL)
     print("🤖 ربات روشن شد!")
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
