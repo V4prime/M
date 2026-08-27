@@ -6,5 +6,5 @@ services:
     startCommand: python bot.py
     plan: free
     envVars:
-      - key: 8844239608:AAHszuQ2AFaAW3T5l2rU8XuHyBFsNq7asPA
+      - key: BOT_TOKEN
         sync: false
