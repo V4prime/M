@@ -1,2 +1,4 @@
-Flask==2.3.3
+Flask==3.0.0
 python-telegram-bot==13.7
+huggingface_hub>=0.20.0
+requests>=2.31.0
