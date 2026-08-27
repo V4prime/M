@@ -1,15 +1,15 @@
 import os
 import json
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime
 from flask import Flask, request
 from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup, ParseMode
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
 from huggingface_hub import InferenceClient
 
-# ===== تنظیمات (همه چیز از متغیرهای محیطی) =====
+# ===== تنظیمات =====
 TOKEN = os.environ.get("BOT_TOKEN")
-ADMIN_IDS = [8518256437]  # آیدی عددی خودت
+ADMIN_IDS = [8518256437]
 HF_TOKEN = os.environ.get("HF_TOKEN")
 # ===================
 
@@ -19,7 +19,7 @@ updater = Updater(token=TOKEN, use_context=True)
 dispatcher = updater.dispatcher
 client = InferenceClient(token=HF_TOKEN)
 
-# ===== دیتابیس ساده (در حافظه) =====
+# ===== دیتابیس =====
 users_data = {}
 banned_users = set()
 
@@ -30,8 +30,7 @@ def start(update: Update, context: CallbackContext):
     if user_id not in users_data:
         users_data[user_id] = {
             'first_seen': datetime.now().strftime("%Y-%m-%d %H:%M"),
-            'requests': 0,
-            'banned': False
+            'requests': 0
         }
     
     if user_id in banned_users:
@@ -39,10 +38,10 @@ def start(update: Update, context: CallbackContext):
         return
     
     keyboard = [
-        [InlineKeyboardButton("💬 چت با هوش مصنوعی", callback_data="chat")],
-        [InlineKeyboardButton("📝 خلاصه‌سازی متن", callback_data="summarize")],
-        [InlineKeyboardButton("🎨 تولید عکس با AI", callback_data="image")],
-        [InlineKeyboardButton("🌐 ترجمه آنی", callback_data="translate")],
+        [InlineKeyboardButton("💬 چت با AI", callback_data="chat")],
+        [InlineKeyboardButton("📝 خلاصه‌سازی", callback_data="summarize")],
+        [InlineKeyboardButton("🎨 تولید عکس", callback_data="image")],
+        [InlineKeyboardButton("🌐 ترجمه", callback_data="translate")],
         [InlineKeyboardButton("ℹ️ راهنما", callback_data="help")]
     ]
     
@@ -53,12 +52,8 @@ def start(update: Update, context: CallbackContext):
     
     welcome_text = (
         "✨ **به ربات هوشمند خوش آمدی!** ✨\n\n"
-        "🤖 من یک ربات با هوش مصنوعی هستم که می‌توانم:\n"
-        "• با تو گفتگو کنم\n"
-        "• متن‌های طولانی را خلاصه کنم\n"
-        "• عکس‌های زیبا بسازم\n"
-        "• متون را ترجمه کنم\n\n"
-        "📌 لطفاً یکی از گزینه‌های زیر را انتخاب کن:"
+        "🤖 من یک ربات با هوش مصنوعی هستم.\n"
+        "📌 لطفاً یکی از گزینه‌ها را انتخاب کن:"
     )
     
     update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
@@ -74,23 +69,22 @@ def admin_panel(update: Update, context: CallbackContext):
     query.answer()
     
     keyboard = [
-        [InlineKeyboardButton("📊 آمار کاربران", callback_data="admin_stats")],
-        [InlineKeyboardButton("📜 مشاهده لاگ", callback_data="admin_log")],
-        [InlineKeyboardButton("🚫 بن کردن کاربر", callback_data="admin_ban")],
-        [InlineKeyboardButton("✅ رفع بن کاربر", callback_data="admin_unban")],
-        [InlineKeyboardButton("📢 ارسال پیام همگانی", callback_data="admin_broadcast")],
-        [InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_menu")]
+        [InlineKeyboardButton("📊 آمار", callback_data="admin_stats")],
+        [InlineKeyboardButton("📜 لاگ", callback_data="admin_log")],
+        [InlineKeyboardButton("🚫 بن", callback_data="admin_ban")],
+        [InlineKeyboardButton("✅ رفع بن", callback_data="admin_unban")],
+        [InlineKeyboardButton("📢 پیام همگانی", callback_data="admin_broadcast")],
+        [InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_menu")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     query.edit_message_text(
-        "⚙️ **پنل مدیریت ربات**\n\n"
-        "لطفاً یکی از گزینه‌ها را انتخاب کنید:",
+        "⚙️ **پنل مدیریت**",
         reply_markup=reply_markup,
         parse_mode=ParseMode.MARKDOWN
     )
 
-# ===== آمار کاربران =====
+# ===== آمار =====
 def admin_stats(update: Update, context: CallbackContext):
     query = update.callback_query
     query.answer()
@@ -101,85 +95,64 @@ def admin_stats(update: Update, context: CallbackContext):
     
     stats_text = (
         "📊 **آمار ربات**\n\n"
-        f"👥 تعداد کل کاربران: {total_users}\n"
-        f"🚫 کاربران بن شده: {banned_count}\n"
-        f"📨 مجموع درخواست‌ها: {total_requests}\n"
-        f"🕐 آخرین به‌روزرسانی: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        f"👥 کاربران: {total_users}\n"
+        f"🚫 بن شده: {banned_count}\n"
+        f"📨 درخواست‌ها: {total_requests}"
     )
     
-    keyboard = [[InlineKeyboardButton("🔙 بازگشت به پنل", callback_data="admin_panel")]]
+    keyboard = [[InlineKeyboardButton("🔙 بازگشت", callback_data="admin_panel")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     query.edit_message_text(stats_text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
 
-# ===== مشاهده لاگ =====
+# ===== لاگ =====
 def admin_log(update: Update, context: CallbackContext):
     query = update.callback_query
     query.answer()
     
-    recent_users = list(users_data.keys())[-10:]
-    log_text = "📜 **۱۰ کاربر آخر:**\n\n"
+    recent_users = list(users_data.keys())[-5:]
+    log_text = "📜 **۵ کاربر آخر:**\n\n"
     
     for i, user_id in enumerate(recent_users, 1):
         user_data = users_data.get(user_id, {})
         log_text += f"{i}. آیدی: `{user_id}`\n"
-        log_text += f"   اولین بازدید: {user_data.get('first_seen', 'نامشخص')}\n"
-        log_text += f"   تعداد درخواست: {user_data.get('requests', 0)}\n\n"
+        log_text += f"   تاریخ: {user_data.get('first_seen', 'نامشخص')}\n"
+        log_text += f"   درخواست: {user_data.get('requests', 0)}\n\n"
     
-    keyboard = [[InlineKeyboardButton("🔙 بازگشت به پنل", callback_data="admin_panel")]]
+    keyboard = [[InlineKeyboardButton("🔙 بازگشت", callback_data="admin_panel")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    if len(log_text) > 4000:
-        log_text = log_text[:4000] + "..."
-    
-    query.edit_message_text(log_text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+    query.edit_message_text(log_text[:4000], reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
 
-# ===== بن کردن کاربر =====
+# ===== بن =====
 def admin_ban(update: Update, context: CallbackContext):
     query = update.callback_query
     query.answer()
-    
     context.user_data['admin_action'] = 'ban'
-    query.edit_message_text(
-        "🚫 **بن کردن کاربر**\n\n"
-        "لطفاً آیدی عددی کاربر مورد نظر را بفرستید:\n"
-        "مثال: `123456789`",
-        parse_mode=ParseMode.MARKDOWN
-    )
+    query.edit_message_text("🚫 آیدی کاربر را بفرست:", parse_mode=ParseMode.MARKDOWN)
 
-# ===== رفع بن کاربر =====
+# ===== رفع بن =====
 def admin_unban(update: Update, context: CallbackContext):
     query = update.callback_query
     query.answer()
-    
     context.user_data['admin_action'] = 'unban'
-    query.edit_message_text(
-        "✅ **رفع بن کاربر**\n\n"
-        "لطفاً آیدی عددی کاربر مورد نظر را بفرستید:",
-        parse_mode=ParseMode.MARKDOWN
-    )
+    query.edit_message_text("✅ آیدی کاربر را بفرست:", parse_mode=ParseMode.MARKDOWN)
 
-# ===== ارسال پیام همگانی =====
+# ===== پیام همگانی =====
 def admin_broadcast(update: Update, context: CallbackContext):
     query = update.callback_query
     query.answer()
-    
     context.user_data['admin_action'] = 'broadcast'
-    query.edit_message_text(
-        "📢 **ارسال پیام همگانی**\n\n"
-        "لطفاً پیام مورد نظر را بفرستید:",
-        parse_mode=ParseMode.MARKDOWN
-    )
+    query.edit_message_text("📢 پیام را بفرست:", parse_mode=ParseMode.MARKDOWN)
 
 # ===== پردازش دکمه‌ها =====
 def button_handler(update: Update, context: CallbackContext):
     query = update.callback_query
     query.answer()
-    
     user_id = update.effective_user.id
     
     if user_id in banned_users:
-        query.edit_message_text("🚫 شما توسط ادمین بن شده‌اید!")
+        query.edit_message_text("🚫 شما بن شده‌اید!")
         return
     
     if query.data == "back_to_menu":
@@ -203,26 +176,14 @@ def button_handler(update: Update, context: CallbackContext):
         return
     
     messages = {
-        'chat': "💬 **حالت گفتگو**\n\nلطفاً سوالت را بفرست:",
-        'summarize': "📝 **حالت خلاصه‌سازی**\n\nمتن طولانی را بفرست تا خلاصه کنم:",
-        'image': "🎨 **حالت تولید عکس**\n\nتوضیحاتی برای عکس مورد نظرت بفرست:",
-        'translate': "🌐 **حالت ترجمه**\n\nمتن را بفرست تا به فارسی/انگلیسی ترجمه کنم:",
-        'help': (
-            "ℹ️ **راهنمای ربات**\n\n"
-            "🤖 این ربات با هوش مصنوعی Hugging Face کار می‌کند.\n\n"
-            "**قابلیت‌ها:**\n"
-            "• چت آزاد با هوش مصنوعی\n"
-            "• خلاصه‌سازی متون طولانی\n"
-            "• تولید عکس با توضیحات\n"
-            "• ترجمه بین فارسی و انگلیسی\n\n"
-            "**نکته:** برای بازگشت به منوی اصلی، دستور /start را بزن."
-        )
+        'chat': "💬 سوالت را بفرست:",
+        'summarize': "📝 متن را بفرست:",
+        'image': "🎨 توضیحات عکس را بفرست:",
+        'translate': "🌐 متن را بفرست:",
+        'help': "ℹ️ راهنما: این ربات با هوش مصنوعی کار می‌کند."
     }
     
-    query.edit_message_text(
-        messages.get(query.data, "❌ گزینه نامعتبر!"),
-        parse_mode=ParseMode.MARKDOWN
-    )
+    query.edit_message_text(messages.get(query.data, "❌"), parse_mode=ParseMode.MARKDOWN)
     context.user_data['mode'] = query.data
 
 # ===== پردازش پیام‌ها =====
@@ -231,13 +192,14 @@ def handle_message(update: Update, context: CallbackContext):
     text = update.message.text
     
     if user_id in banned_users:
-        update.message.reply_text("🚫 شما توسط ادمین بن شده‌اید!")
+        update.message.reply_text("🚫 شما بن شده‌اید!")
         return
     
     if user_id not in users_data:
-        users_data[user_id] = {'first_seen': datetime.now().strftime("%Y-%m-%d %H:%M"), 'requests': 0, 'banned': False}
+        users_data[user_id] = {'first_seen': datetime.now().strftime("%Y-%m-%d %H:%M"), 'requests': 0}
     users_data[user_id]['requests'] += 1
     
+    # اقدامات ادمین
     admin_action = context.user_data.get('admin_action')
     if user_id in ADMIN_IDS and admin_action:
         if admin_action == 'ban':
@@ -245,11 +207,11 @@ def handle_message(update: Update, context: CallbackContext):
                 target_id = int(text)
                 if target_id not in ADMIN_IDS:
                     banned_users.add(target_id)
-                    update.message.reply_text(f"✅ کاربر با آیدی `{target_id}` بن شد!")
+                    update.message.reply_text(f"✅ کاربر {target_id} بن شد!")
                 else:
                     update.message.reply_text("❌ نمی‌توانید ادمین را بن کنید!")
             except:
-                update.message.reply_text("❌ لطفاً یک آیدی عددی معتبر بفرستید!")
+                update.message.reply_text("❌ آیدی نامعتبر!")
             context.user_data['admin_action'] = None
             return
             
@@ -258,11 +220,11 @@ def handle_message(update: Update, context: CallbackContext):
                 target_id = int(text)
                 if target_id in banned_users:
                     banned_users.remove(target_id)
-                    update.message.reply_text(f"✅ بن کاربر `{target_id}` برداشته شد!")
+                    update.message.reply_text(f"✅ بن {target_id} برداشته شد!")
                 else:
-                    update.message.reply_text(f"❌ کاربر `{target_id}` در لیست بن نیست!")
+                    update.message.reply_text(f"❌ کاربر {target_id} بن نیست!")
             except:
-                update.message.reply_text("❌ لطفاً یک آیدی عددی معتبر بفرستید!")
+                update.message.reply_text("❌ آیدی نامعتبر!")
             context.user_data['admin_action'] = None
             return
             
@@ -270,7 +232,7 @@ def handle_message(update: Update, context: CallbackContext):
             count = 0
             for uid in users_data.keys():
                 try:
-                    bot.send_message(chat_id=uid, text=f"📢 **پیام از طرف ادمین:**\n\n{text}", parse_mode=ParseMode.MARKDOWN)
+                    bot.send_message(chat_id=uid, text=f"📢 پیام از ادمین:\n\n{text}")
                     count += 1
                 except:
                     pass
@@ -278,25 +240,26 @@ def handle_message(update: Update, context: CallbackContext):
             context.user_data['admin_action'] = None
             return
     
+    # پردازش معمولی
     mode = context.user_data.get('mode', 'chat')
-    processing_msg = update.message.reply_text("⏳ **در حال پردازش...**", parse_mode=ParseMode.MARKDOWN)
+    processing_msg = update.message.reply_text("⏳ در حال پردازش...")
     
     try:
         if mode == 'chat':
             response = client.text_generation(
                 prompt=f"User: {text}\nAI:",
                 model="microsoft/DialoGPT-medium",
-                max_new_tokens=250
+                max_new_tokens=150
             )
-            result = f"🤖 **پاسخ:**\n{response.generated_text.strip()}"
+            result = f"🤖 {response.generated_text.strip()}"
             
         elif mode == 'summarize':
             response = client.text_generation(
-                prompt=f"Summarize this text concisely in Persian: {text}",
+                prompt=f"Summarize: {text}",
                 model="facebook/bart-large-cnn",
-                max_new_tokens=200
+                max_new_tokens=150
             )
-            result = f"📝 **خلاصه:**\n{response.generated_text.strip()}"
+            result = f"📝 {response.generated_text.strip()}"
             
         elif mode == 'image':
             response = client.text_to_image(
@@ -306,26 +269,26 @@ def handle_message(update: Update, context: CallbackContext):
             bot.send_photo(
                 chat_id=update.effective_chat.id,
                 photo=response,
-                caption=f"🎨 **عکس ساخته شده:**\n{text}"
+                caption=f"🎨 {text}"
             )
             processing_msg.delete()
             return
             
         elif mode == 'translate':
             response = client.text_generation(
-                prompt=f"Translate this to Persian (if English) or to English (if Persian): {text}",
+                prompt=f"Translate to Persian: {text}",
                 model="Helsinki-NLP/opus-mt-en-fa",
-                max_new_tokens=200
+                max_new_tokens=150
             )
-            result = f"🌐 **ترجمه:**\n{response.generated_text.strip()}"
+            result = f"🌐 {response.generated_text.strip()}"
             
         else:
-            result = "❌ حالت نامعتبر! لطفاً از منوی اصلی انتخاب کن."
+            result = "❌ حالت نامعتبر!"
         
-        processing_msg.edit_text(result, parse_mode=ParseMode.MARKDOWN)
+        processing_msg.edit_text(result)
         
     except Exception as e:
-        processing_msg.edit_text(f"❌ **خطا:**\n{str(e)}", parse_mode=ParseMode.MARKDOWN)
+        processing_msg.edit_text(f"❌ خطا: {str(e)[:100]}")
 
 # ===== ثبت هندلرها =====
 dispatcher.add_handler(CommandHandler("start", start))
@@ -344,7 +307,7 @@ def health():
     return "🤖 Bot is running!", 200
 
 if __name__ == "__main__":
-    WEBHOOK_URL = "https://m-1-4x8p.onrender.com/"
+    WEBHOOK_URL = "https://m-2-87zo.onrender.com/"
     bot.set_webhook(WEBHOOK_URL)
-    print("🤖 ربات هوشمند با پنل ادمین روشن شد!")
+    print("🤖 ربات هوشمند روشن شد!")
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
