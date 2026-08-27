@@ -3,14 +3,14 @@ import json
 import requests
 from datetime import datetime, timedelta
 from flask import Flask, request
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ParseMode
+from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup, ParseMode
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
 from huggingface_hub import InferenceClient
 
 # ===== تنظیمات (همه چیز از متغیرهای محیطی) =====
-TOKEN = os.environ.get("BOT_TOKEN")  # توکن ربات از Render
-ADMIN_IDS = [8518256437]  # آیدی ادمین‌ها (همون خودت)
-HF_TOKEN = os.environ.get("HF_TOKEN")  # توکن Hugging Face از Render
+TOKEN = os.environ.get("BOT_TOKEN")
+ADMIN_IDS = [8518256437]  # آیدی عددی خودت
+HF_TOKEN = os.environ.get("HF_TOKEN")
 # ===================
 
 app = Flask(__name__)
@@ -20,15 +20,13 @@ dispatcher = updater.dispatcher
 client = InferenceClient(token=HF_TOKEN)
 
 # ===== دیتابیس ساده (در حافظه) =====
-users_data = {}  # {user_id: {'first_seen': date, 'requests': 0, 'banned': False}}
-user_requests = {}  # {user_id: {'chat': 5, 'summarize': 3, ...}}
+users_data = {}
 banned_users = set()
 
 # ===== منوی اصلی =====
 def start(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     
-    # ثبت کاربر جدید
     if user_id not in users_data:
         users_data[user_id] = {
             'first_seen': datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -36,7 +34,6 @@ def start(update: Update, context: CallbackContext):
             'banned': False
         }
     
-    # چک کردن بن
     if user_id in banned_users:
         update.message.reply_text("🚫 شما توسط ادمین بن شده‌اید!")
         return
@@ -49,7 +46,6 @@ def start(update: Update, context: CallbackContext):
         [InlineKeyboardButton("ℹ️ راهنما", callback_data="help")]
     ]
     
-    # دکمه‌های ادمین (فقط برای ادمین‌ها)
     if user_id in ADMIN_IDS:
         keyboard.append([InlineKeyboardButton("⚙️ پنل ادمین", callback_data="admin_panel")])
     
@@ -121,7 +117,6 @@ def admin_log(update: Update, context: CallbackContext):
     query = update.callback_query
     query.answer()
     
-    # ۱۰ کاربر آخر
     recent_users = list(users_data.keys())[-10:]
     log_text = "📜 **۱۰ کاربر آخر:**\n\n"
     
@@ -207,7 +202,6 @@ def button_handler(update: Update, context: CallbackContext):
             admin_actions[query.data](update, context)
         return
     
-    # حالت‌های معمولی
     messages = {
         'chat': "💬 **حالت گفتگو**\n\nلطفاً سوالت را بفرست:",
         'summarize': "📝 **حالت خلاصه‌سازی**\n\nمتن طولانی را بفرست تا خلاصه کنم:",
@@ -231,22 +225,19 @@ def button_handler(update: Update, context: CallbackContext):
     )
     context.user_data['mode'] = query.data
 
-# ===== پردازش پیام‌ها (با مدیریت ادمین) =====
+# ===== پردازش پیام‌ها =====
 def handle_message(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     text = update.message.text
     
-    # چک کردن بن
     if user_id in banned_users:
         update.message.reply_text("🚫 شما توسط ادمین بن شده‌اید!")
         return
     
-    # ثبت درخواست کاربر
     if user_id not in users_data:
         users_data[user_id] = {'first_seen': datetime.now().strftime("%Y-%m-%d %H:%M"), 'requests': 0, 'banned': False}
     users_data[user_id]['requests'] += 1
     
-    # پردازش اقدامات ادمین
     admin_action = context.user_data.get('admin_action')
     if user_id in ADMIN_IDS and admin_action:
         if admin_action == 'ban':
@@ -276,7 +267,6 @@ def handle_message(update: Update, context: CallbackContext):
             return
             
         elif admin_action == 'broadcast':
-            # ارسال پیام به همه کاربران
             count = 0
             for uid in users_data.keys():
                 try:
@@ -288,7 +278,6 @@ def handle_message(update: Update, context: CallbackContext):
             context.user_data['admin_action'] = None
             return
     
-    # پردازش معمولی پیام‌ها
     mode = context.user_data.get('mode', 'chat')
     processing_msg = update.message.reply_text("⏳ **در حال پردازش...**", parse_mode=ParseMode.MARKDOWN)
     
