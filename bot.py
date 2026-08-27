@@ -1,15 +1,12 @@
 import os
-import asyncio
-import uuid
-import threading
-import time
+import json
 from flask import Flask, request
-from telegram import Bot, Update
+from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 
 # ===== تنظیمات =====
 TOKEN = "8844239608:AAHszuQ2AFaAW3T5l2rU8XuHyBFsNq7asPA"
-ADMIN_IDS = [8518256437]
+ADMIN_ID = 8844239608  # آیدی عددی خودت
 # ===================
 
 app = Flask(__name__)
@@ -17,67 +14,64 @@ bot = Bot(token=TOKEN)
 updater = Updater(token=TOKEN, use_context=True)
 dispatcher = updater.dispatcher
 
-file_storage = {}
+# ذخیره‌سازی پیام‌های ناشناس (برای ادمین)
+anonymous_messages = []
 
-# ===== دستورات ربات =====
+# ===== دستور شروع =====
 def start(update: Update, context: CallbackContext):
     update.message.reply_text(
-        "🎬 سلام! ربات آپلودر اختصاصی.\n"
-        "📤 فقط ادمین‌ها می‌تونن آپلود کنن.\n"
-        "🔗 بعد آپلود لینک می‌گیری که ۱۰ ثانیه بعد پاک میشه."
+        "🕵️ به ربات ناشناس خوش اومدی!\n\n"
+        "📩 می‌تونی هر پیامی که می‌خوای به ربات بفرستی و ما به مقصد نهایی (گروه یا کاربر) ناشناس می‌فرستیم.\n"
+        "🔒 حریم خصوصی‌ات کامل حفظ میشه (فقط ادمین می‌تونه ببینه کی فرستاده!)."
     )
 
-def handle_file(update: Update, context: CallbackContext):
-    if update.effective_user.id not in ADMIN_IDS:
-        update.message.reply_text("❌ فقط ادمین‌ها!")
-        return
+# ===== دریافت پیام از کاربر =====
+def handle_message(update: Update, context: CallbackContext):
+    user = update.effective_user
+    user_id = user.id
+    username = user.username or "ندارد"
+    first_name = user.first_name or "ندارد"
+    text = update.message.text
     
-    if update.message.video:
-        file_id = update.message.video.file_id
-        file_type = "video"
-    elif update.message.document:
-        file_id = update.message.document.file_id
-        file_type = "document"
-    elif update.message.photo:
-        file_id = update.message.photo[-1].file_id
-        file_type = "photo"
-    else:
-        update.message.reply_text("❌ ویدیو یا فایل بفرست!")
-        return
+    # ذخیره اطلاعات برای ادمین
+    anonymous_messages.append({
+        "user_id": user_id,
+        "username": username,
+        "first_name": first_name,
+        "text": text
+    })
     
-    code = str(uuid.uuid4())[:8]
-    file_storage[code] = {"file_id": file_id, "file_type": file_type}
-    
-    bot_username = context.bot.get_me().username
-    link = f"https://t.me/{bot_username}?start={code}"
-    
-    update.message.reply_text(f"✅ لینک:\n{link}\n\n⏰ ۱۰ ثانیه بعد پاک میشه!")
-
-def handle_start_with_code(update: Update, context: CallbackContext):
-    code = context.args[0] if context.args else None
-    if not code or code not in file_storage:
-        update.message.reply_text("❌ لینک نامعتبر!")
-        return
-    
-    info = file_storage[code]
-    msg = update.message.reply_video(
-        video=info["file_id"],
-        caption="🎬 سیو کن! ۱۰ ثانیه پاک میشه..."
+    # ارسال پیام ناشناس به گروه یا کاربر (اینجا مثال: ارسال به خودت)
+    bot.send_message(
+        chat_id=ADMIN_ID,
+        text=f"📩 پیام ناشناس:\n\n{text}"
     )
     
-    def delete_after():
-        time.sleep(10)
-        try:
-            bot.delete_message(chat_id=update.effective_chat.id, message_id=msg.message_id)
-            bot.delete_message(chat_id=update.effective_chat.id, message_id=update.message.message_id)
-        except:
-            pass
-    threading.Thread(target=delete_after).start()
+    # تایید به کاربر
+    update.message.reply_text("✅ پیامت ناشناس ارسال شد!")
+
+# ===== دستور ویژه ادمین برای دیدن لیست پیام‌ها =====
+def admin_list(update: Update, context: CallbackContext):
+    if update.effective_user.id != ADMIN_ID:
+        update.message.reply_text("❌ شما دسترسی ندارید!")
+        return
+    
+    if not anonymous_messages:
+        update.message.reply_text("📭 هنوز پیام ناشناسی دریافت نشده.")
+        return
+    
+    # نمایش ۵ پیام آخر
+    msg = "📋 لیست پیام‌های ناشناس:\n\n"
+    for i, item in enumerate(anonymous_messages[-5:], 1):
+        msg += f"{i}. از: {item['first_name']} (@{item['username']}) - آیدی: {item['user_id']}\n"
+        msg += f"   متن: {item['text'][:50]}...\n\n"
+    
+    update.message.reply_text(msg)
 
 # ===== ثبت هندلرها =====
 dispatcher.add_handler(CommandHandler("start", start))
-dispatcher.add_handler(CommandHandler("start", handle_start_with_code))
-dispatcher.add_handler(MessageHandler(Filters.video | Filters.document | Filters.photo, handle_file))
+dispatcher.add_handler(CommandHandler("admin_list", admin_list))  # دستور ویژه ادمین
+dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
 
 # ===== Webhook =====
 @app.route("/", methods=["POST"])
@@ -90,9 +84,8 @@ def webhook():
 def health():
     return "Bot is running!", 200
 
-# ===== اجرا =====
 if __name__ == "__main__":
     WEBHOOK_URL = "https://m-1-4x8p.onrender.com/"
     bot.set_webhook(WEBHOOK_URL)
-    print("🤖 ربات روشن شد!")
+    print("🤖 ربات ناشناس روشن شد!")
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
