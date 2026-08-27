@@ -92,7 +92,7 @@ def health():
 
 # ===== اجرا =====
 if __name__ == "__main__":
-    WEBHOOK_URL = "https://your-bot.onrender.com/"
+    WEBHOOK_URL = "https://m-1-4x8p.onrender.com/"
     bot.set_webhook(WEBHOOK_URL)
     print("🤖 ربات روشن شد!")
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
