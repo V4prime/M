@@ -76,7 +76,7 @@ def generate_massive_dns(country: str, base_ips: List[str], count_per_range: int
 
 dns_database = {}
 
-# 1. 🇺🇸 USA (بیشترین DNS)
+# 1. 🇺🇸 USA
 dns_database["🇺🇸 USA"] = list(set(
     [
         "8.8.8.8", "8.8.4.4", "1.1.1.1", "1.0.0.1",
@@ -488,4 +488,7 @@ if __name__ == "__main__":
         logger.info("🚀 Bot started successfully!")
         logger.info(f"📊 Total DNS records: {sum(len(dns) for dns in dns_database.values()):,}")
         logger.info(f"🌍 Countries available: {len(dns_database)}")
-        bot.infinity_polling(timeout=60
+        bot.infinity_polling(timeout=60, long_polling_timeout=30)
+    except Exception as e:
+        logger.error(f"Fatal error: {e}")
+        exit(1)
