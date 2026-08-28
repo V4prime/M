@@ -15,7 +15,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ======================== FLASK SERVER (برای رندر) ========================
+# ======================== FLASK SERVER ========================
 app = Flask('')
 
 @app.route('/')
@@ -32,11 +32,11 @@ def keep_alive():
     logger.info("✅ Flask server started on port 8080")
 
 # ======================== SETTINGS ========================
-TOKEN = os.environ.get('BOT_TOKEN') or "8928874597:AAHfSKy1e6-YjOIWBleHrNKsEtaf1mgts5I"
-CHANNEL_ID = os.environ.get('CHANNEL_ID') or "@Er4nq"
+TOKEN = os.environ.get('BOT_TOKEN')
+CHANNEL_ID = os.environ.get('CHANNEL_ID')
 
-if not TOKEN:
-    logger.error("❌ BOT_TOKEN not found!")
+if not TOKEN or not CHANNEL_ID:
+    logger.error("❌ BOT_TOKEN or CHANNEL_ID not found!")
     exit(1)
 
 bot = telebot.TeleBot(TOKEN, threaded=False)
@@ -64,15 +64,7 @@ def generate_dns_range(base_ip: str, count: int = 500) -> List[str]:
         return []
     return dns_list
 
-def generate_massive_dns(country: str, base_ips: List[str], count_per_range: int = 500) -> List[str]:
-    """Generate massive DNS list from multiple base IPs"""
-    all_dns = set()
-    for base_ip in base_ips:
-        generated = generate_dns_range(base_ip, count_per_range)
-        all_dns.update(generated)
-    return list(all_dns)
-
-# ======================== DNS DATABASE (20 Countries, 10,000+ DNS) ========================
+# ======================== DNS DATABASE ========================
 
 dns_database = {}
 
@@ -307,7 +299,7 @@ dns_database["🇦🇷 Argentina"] = list(set(
     generate_dns_range("200.115.192.0", 500)
 ))
 
-# Clean and deduplicate all DNS lists
+# Clean up
 for country in dns_database:
     dns_database[country] = list(set(dns_database[country]))
     logger.info(f"✅ {country}: {len(dns_database[country])} DNS records")
@@ -396,6 +388,7 @@ def start(message):
         safe_send_message(message.chat.id, "❌ An error occurred. Please try again later!")
 
 def show_country_selection(message):
+    """Show country selection buttons (with message object)"""
     try:
         keyboard = InlineKeyboardMarkup(row_width=3)
         buttons = []
@@ -421,6 +414,33 @@ def show_country_selection(message):
         logger.error(f"Error showing country selection: {e}")
         safe_send_message(message.chat.id, "❌ Error loading countries. Please try again!")
 
+def show_country_selection_by_chat_id(chat_id: int):
+    """Show country selection buttons using chat_id directly"""
+    try:
+        keyboard = InlineKeyboardMarkup(row_width=3)
+        buttons = []
+        
+        sorted_countries = sorted(dns_database.keys())
+        for country in sorted_countries:
+            flag = country.split()[0]
+            name = ' '.join(country.split()[1:])
+            buttons.append(InlineKeyboardButton(f"{flag} {name}", callback_data=f"dns_{country}"))
+        
+        keyboard.add(*buttons)
+        
+        total_dns = sum(len(dns) for dns in dns_database.values())
+        safe_send_message(
+            chat_id,
+            f"🌏 *Select your desired country:*\n\n"
+            f"Choose a country to get 2 real and powerful DNS servers.\n\n"
+            f"📊 *Total DNS in database:* `{total_dns:,}`",
+            reply_markup=keyboard,
+            parse_mode='Markdown'
+        )
+    except Exception as e:
+        logger.error(f"Error showing country selection: {e}")
+        safe_send_message(chat_id, "❌ Error loading countries. Please try again!")
+
 def send_dns_message(chat_id: int, country_key: str):
     try:
         dns_list = get_two_random_dns(country_key)
@@ -436,6 +456,10 @@ def send_dns_message(chat_id: int, country_key: str):
         text += "\n⚠️ *Note:* These DNS servers are real and active."
         
         safe_send_message(chat_id, text, parse_mode='Markdown')
+        
+        # ========== نمایش دوباره کشورها ==========
+        show_country_selection_by_chat_id(chat_id)
+        
     except Exception as e:
         logger.error(f"Error sending DNS message: {e}")
         safe_send_message(chat_id, "❌ Error fetching DNS. Please try again!")
@@ -465,30 +489,4 @@ def callback_handler(call):
             send_dns_message(call.message.chat.id, country_key)
     except Exception as e:
         logger.error(f"Error in callback handler: {e}")
-        bot.answer_callback_query(call.id, "❌ An error occurred!", show_alert=True)
-
-@bot.message_handler(func=lambda message: True)
-def handle_all_messages(message):
-    try:
-        safe_send_message(
-            message.chat.id,
-            "🤖 *Available commands:*\n"
-            "`/start` - Start the bot\n\n"
-            "Please use /start to begin!",
-            parse_mode='Markdown'
-        )
-    except Exception as e:
-        logger.error(f"Error in fallback handler: {e}")
-
-# ======================== RUN BOT ========================
-if __name__ == "__main__":
-    try:
-        keep_alive()
-        
-        logger.info("🚀 Bot started successfully!")
-        logger.info(f"📊 Total DNS records: {sum(len(dns) for dns in dns_database.values()):,}")
-        logger.info(f"🌍 Countries available: {len(dns_database)}")
-        bot.infinity_polling(timeout=60, long_polling_timeout=30)
-    except Exception as e:
-        logger.error(f"Fatal error: {e}")
-        exit(1)
+        bot.answer_callback_query(cal
