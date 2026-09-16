@@ -698,14 +698,19 @@ async function handleLoginInput(msg, state) {
         if (errMsg.includes('PASSWORD')) {
           upsertLoginState(userId, { step: 'password' });
           await botSendMessage(msg.chat.id, MSG.loginPasswordPrompt, { parseMode: 'Markdown' });
-        } else if (errMsg.includes('PHONE_CODE_INVALID') || errMsg.includes('CODE_INVALID')) {
-          await botSendMessage(msg.chat.id, '❌ کد اشتباهه. لطفاً کد صحیح رو وارد کن.\n\n💡 اگه کد رو چند بار اشتباه زدی، باید ۲ دقیقه صبر کنی تا کد جدید بگیری.');
+        } else if (errMsg.includes('PHONE_CODE_INVALID') || errMsg.includes('CODE_INVALID') || errMsg.includes('SESSION_PASSWORD_NEEDED')) {
+          await botSendMessage(msg.chat.id, '❌ کد اشتباهه یا منقضی شده.\n\n💡 می‌تونی 2 دقیقه صبر کنی و روی «اتصال اکانت» بزنی تا کد جدید بگیری.', { replyMarkup: [[btn('🔄 شروع مجدد', 'login_start')]] });
+          deleteLoginState(userId);
+          activeSessions.delete(session.id);
         } else if (errMsg.includes('FLOOD_WAIT')) {
           const match = errMsg.match(/FLOOD_WAIT_(\d+)/);
           const waitSec = match ? parseInt(match[1], 10) : 0;
-          const waitMin = Math.floor(waitSec / 60);
-          await botSendMessage(msg.chat.id, `⏳ تلگرام این شماره رو محدود کرده.\n\nلطفاً ${waitMin} دقیقه صبر کن و دوباره تلاش کن.`);
+          const waitHrs = Math.floor(waitSec / 3600);
+          const waitMin = Math.floor((waitSec % 3600) / 60);
+          const waitTxt = waitHrs > 0 ? `${waitHrs} ساعت و ${waitMin} دقیقه` : `${waitMin} دقیقه`;
+          await botSendMessage(msg.chat.id, `⏳ تلگرام این شماره رو موقتاً محدود کرده.\n\n⌛️ زمان انتظار: ${waitTxt}\n\n💡 راه‌حل:\n• صبر کن تا زمان تموم شه\n• یا یه شماره دیگه استفاده کن`);
           deleteLoginState(userId);
+          activeSessions.delete(session.id);
         } else {
           await botSendMessage(msg.chat.id, format(MSG.loginError, { error: errMsg }), { parseMode: 'Markdown' });
           // Reset session for retry
