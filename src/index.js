@@ -444,11 +444,11 @@ function logActivity(sessionId, level, category, message, extra) {
 // ==========================================
 // Session Manager - mtcute client management
 // ==========================================
-async function getClientForSession(session) {
+async function getClientForSession(session, fresh = false) {
   const cacheKey = session.id;
-  if (activeSessions.has(cacheKey)) {
+  if (!fresh && activeSessions.has(cacheKey)) {
     const cached = activeSessions.get(cacheKey);
-    if (cached.client.isConnected()) return cached.client;
+    if (cached.client.isConnected) return cached.client;
   }
 
   // Decrypt session string
@@ -487,8 +487,12 @@ async function getClientForSession(session) {
   return client;
 }
 
+// Track pending login state per session (for code/password flow)
+const pendingLogins = new Map(); // sessionId -> { phone, sendCodeResult, code, password }
+
 async function startLoginFlow(session, phone) {
-  const client = await getClientForSession(session);
+  // Always start with a fresh client to avoid stale state
+  const client = await getClientForSession(session, true);
 
   // Trigger code sending by trying to start
   try {
@@ -497,19 +501,33 @@ async function startLoginFlow(session, phone) {
       code: () => Promise.reject(new Error('CODE_REQUIRED')),
       password: () => Promise.reject(new Error('PASSWORD_REQUIRED')),
     });
-    // If we reach here, login succeeded without code (cached)
+    // If we reach here, login succeeded without code (cached session valid)
     const sessionString = await client.exportSession();
     return { done: true, session: sessionString };
   } catch (e) {
     const msg = String(e.message || e);
-    if (msg.includes('CODE_REQUIRED')) return { needs: 'code' };
-    if (msg.includes('PASSWORD_REQUIRED')) return { needs: 'password' };
+    if (msg.includes('CODE_REQUIRED')) {
+      // Save pending state so verifyCode can use the same client
+      pendingLogins.set(session.id, { phone, code: null, password: null });
+      return { needs: 'code' };
+    }
+    if (msg.includes('PASSWORD_REQUIRED')) {
+      pendingLogins.set(session.id, { phone, code: null, password: null });
+      return { needs: 'password' };
+    }
     throw e;
   }
 }
 
 async function verifyCode(session, code) {
+  // Use the same client that sent the code (to avoid re-sending another code)
   const client = await getClientForSession(session);
+
+  // If we have a pending login from startLoginFlow, update its code
+  const pending = pendingLogins.get(session.id) || {};
+  pending.code = code;
+  pendingLogins.set(session.id, pending);
+
   try {
     await client.start({
       phone: () => Promise.resolve(session.phone),
@@ -517,24 +535,35 @@ async function verifyCode(session, code) {
       password: () => Promise.reject(new Error('PASSWORD_REQUIRED')),
     });
     const sessionString = await client.exportSession();
+    pendingLogins.delete(session.id);
     return { done: true, session: sessionString };
   } catch (e) {
-    if (String(e.message).includes('PASSWORD_REQUIRED')) return { needs: 'password' };
+    const msg = String(e.message || e);
+    if (msg.includes('PASSWORD_REQUIRED')) return { needs: 'password' };
     throw e;
   }
 }
 
 async function verifyPassword(session, password) {
+  // Use the same client that sent the code
   const client = await getClientForSession(session);
+
+  // Get the code from pending state
+  const pending = pendingLogins.get(session.id) || {};
+  const code = pending.code || '';
+
   try {
     await client.start({
       phone: () => Promise.resolve(session.phone),
-      code: () => Promise.resolve(''), // Will fail if needed, but we want to try password flow
+      code: () => Promise.resolve(code),
       password: () => Promise.resolve(password),
     });
     const sessionString = await client.exportSession();
+    pendingLogins.delete(session.id);
     return { done: true, session: sessionString };
   } catch (e) {
+    // On error, reset the client so next attempt starts fresh
+    activeSessions.delete(session.id);
     throw e;
   }
 }
@@ -1118,7 +1147,7 @@ app.listen(PORT, async () => {
 // Periodic keep-alive for active sessions
 setInterval(() => {
   for (const [id, cached] of activeSessions.entries()) {
-    if (!cached.client.isConnected()) {
+    if (!cached.client.isConnected) {
       console.log(`Session ${id} disconnected, cleaning up`);
       activeSessions.delete(id);
     }
