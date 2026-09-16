@@ -231,12 +231,22 @@ const botSendMessage = (chatId, text, opts = {}) => tgApi('sendMessage', {
   reply_to_message_id: opts.replyTo,
 });
 
-const botEditMessageText = (chatId, messageId, text, opts = {}) => tgApi('editMessageText', {
-  chat_id: chatId, message_id: messageId, text,
-  parse_mode: opts.parseMode,
-  reply_markup: opts.replyMarkup,
-  disable_web_page_preview: opts.disablePreview,
-});
+async function botEditMessageText(chatId, messageId, text, opts = {}) {
+  try {
+    return await tgApi('editMessageText', {
+      chat_id: chatId, message_id: messageId, text,
+      parse_mode: opts.parseMode,
+      reply_markup: opts.replyMarkup,
+      disable_web_page_preview: opts.disablePreview,
+    });
+  } catch (e) {
+    // Ignore "message is not modified" errors - they happen when content is the same
+    if (e.message && e.message.includes('message is not modified')) {
+      return null;
+    }
+    throw e;
+  }
+}
 
 const botAnswerCallback = (callbackId, text, showAlert) => tgApi('answerCallbackQuery', {
   callback_query_id: callbackId, text, show_alert: showAlert,
