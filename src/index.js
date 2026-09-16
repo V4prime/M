@@ -1166,6 +1166,49 @@ app.delete('/logs', (req, res) => {
   res.json({ ok: true });
 });
 
+// Endpoint to broadcast message to all known users
+app.post('/broadcast', async (req, res) => {
+  const { text } = req.body || {};
+  if (!text) return res.status(400).json({ error: 'text required' });
+  try {
+    const users = dbAll('SELECT tg_user_id, tg_first_name FROM users');
+    const results = [];
+    for (const user of users) {
+      try {
+        await botSendMessage(user.tg_user_id, text);
+        results.push({ user: user.tg_user_id, ok: true });
+      } catch (e) {
+        results.push({ user: user.tg_user_id, ok: false, error: e.message });
+      }
+    }
+    res.json({ sent: results.length, results });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Endpoint to send message to a specific user
+app.post('/send', async (req, res) => {
+  const { chatId, text } = req.body || {};
+  if (!chatId || !text) return res.status(400).json({ error: 'chatId and text required' });
+  try {
+    await botSendMessage(chatId, text);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Endpoint to list known users
+app.get('/users', (req, res) => {
+  try {
+    const users = dbAll('SELECT tg_user_id, tg_username, tg_first_name, last_activity FROM users ORDER BY last_activity DESC');
+    res.json({ users });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post(`/webhook/${BOT_TOKEN}`, async (req, res) => {
   const update = req.body;
   res.json({ ok: true });
