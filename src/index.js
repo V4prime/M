@@ -626,10 +626,44 @@ async function handleLoginInput(msg, state) {
           await finalizeLogin(msg, session.id, result.session);
         }
       } catch (e) {
-        logActivity(session.id, 'error', 'login', e.message);
-        updateSession(session.id, { status: 'error', last_error: e.message });
-        await botSendMessage(msg.chat.id, format(MSG.loginError, { error: e.message }), { parseMode: 'Markdown' });
-        deleteLoginState(userId);
+        const errMsg = String(e.message || e);
+        logActivity(session.id, 'error', 'login', errMsg);
+        updateSession(session.id, { status: 'error', last_error: errMsg });
+
+        // Translate common Telegram errors to user-friendly messages
+        let userMsg = errMsg;
+        if (errMsg.includes('FLOOD_WAIT')) {
+          // Extract the wait time
+          const match = errMsg.match(/FLOOD_WAIT_(\d+)/);
+          const waitSec = match ? parseInt(match[1], 10) : 0;
+          const waitHrs = Math.floor(waitSec / 3600);
+          const waitMin = Math.floor((waitSec % 3600) / 60);
+          const waitTxt = waitHrs > 0
+            ? `${waitHrs} ساعت و ${waitMin} دقیقه`
+            : `${waitMin} دقیقه`;
+          userMsg = `⏳ تلگرام این شماره رو محدود کرده.\n\nلطفاً ${waitTxt} دیگه صبر کن و دوباره تلاش کن.\n\n💡 دلیل: ارسال زیاد کد تأیید در مدت کوتاه.\n\n⚠️ این محدودیت از طرف تلگرام هست و قابل دور زدن نیست.`;
+          deleteLoginState(userId);
+        } else if (errMsg.includes('PHONE_NUMBER_BANNED')) {
+          userMsg = '❌ این شماره از تلگرام بن شده.';
+          deleteLoginState(userId);
+        } else if (errMsg.includes('PHONE_NUMBER_INVALID')) {
+          userMsg = '❌ شماره نامعتبره. لطفاً با کد کشور (مثل 98 برای ایران) بفرست.';
+          deleteLoginState(userId);
+        } else if (errMsg.includes('API_ID_INVALID')) {
+          userMsg = '❌ API credentials نامعتبره. به پشتیبانی گزارش بدید.';
+        } else if (errMsg.includes('PHONE_CODE_INVALID')) {
+          userMsg = '❌ کد اشتباهه. دوباره وارد کن.';
+        } else if (errMsg.includes('PASSWORD_HASH_INVALID')) {
+          userMsg = '❌ رمز دوم اشتباهه.';
+        } else if (errMsg.includes('connection') || errMsg.includes('network') || errMsg.includes('ECONN')) {
+          userMsg = '⚠️ خطای اتصال به سرور تلگرام. لطفاً چند ثانیه بعد دوباره تلاش کن.';
+          deleteLoginState(userId);
+        }
+
+        await botSendMessage(msg.chat.id, userMsg, { parseMode: errMsg.includes('FLOOD_WAIT') ? undefined : 'Markdown' });
+        if (!errMsg.includes('FLOOD_WAIT') && !errMsg.includes('PHONE_CODE_INVALID') && !errMsg.includes('PASSWORD_HASH_INVALID')) {
+          deleteLoginState(userId);
+        }
       }
       return;
     }
@@ -650,11 +684,23 @@ async function handleLoginInput(msg, state) {
           await botSendMessage(msg.chat.id, MSG.loginPasswordPrompt, { parseMode: 'Markdown' });
         }
       } catch (e) {
-        if (String(e.message).includes('PASSWORD')) {
+        const errMsg = String(e.message || e);
+        if (errMsg.includes('PASSWORD')) {
           upsertLoginState(userId, { step: 'password' });
           await botSendMessage(msg.chat.id, MSG.loginPasswordPrompt, { parseMode: 'Markdown' });
+        } else if (errMsg.includes('PHONE_CODE_INVALID') || errMsg.includes('CODE_INVALID')) {
+          await botSendMessage(msg.chat.id, '❌ کد اشتباهه. لطفاً کد صحیح رو وارد کن.\n\n💡 اگه کد رو چند بار اشتباه زدی، باید ۲ دقیقه صبر کنی تا کد جدید بگیری.');
+        } else if (errMsg.includes('FLOOD_WAIT')) {
+          const match = errMsg.match(/FLOOD_WAIT_(\d+)/);
+          const waitSec = match ? parseInt(match[1], 10) : 0;
+          const waitMin = Math.floor(waitSec / 60);
+          await botSendMessage(msg.chat.id, `⏳ تلگرام این شماره رو محدود کرده.\n\nلطفاً ${waitMin} دقیقه صبر کن و دوباره تلاش کن.`);
+          deleteLoginState(userId);
         } else {
-          await botSendMessage(msg.chat.id, format(MSG.loginError, { error: e.message }), { parseMode: 'Markdown' });
+          await botSendMessage(msg.chat.id, format(MSG.loginError, { error: errMsg }), { parseMode: 'Markdown' });
+          // Reset session for retry
+          activeSessions.delete(session.id);
+          deleteLoginState(userId);
         }
       }
       return;
@@ -672,7 +718,17 @@ async function handleLoginInput(msg, state) {
           await finalizeLogin(msg, session.id, result.session);
         }
       } catch (e) {
-        await botSendMessage(msg.chat.id, format(MSG.loginError, { error: e.message }), { parseMode: 'Markdown' });
+        const errMsg = String(e.message || e);
+        if (errMsg.includes('PASSWORD_HASH_INVALID') || errMsg.includes('SRP_ID_INVALID')) {
+          await botSendMessage(msg.chat.id, '❌ رمز دوم اشتباهه. دوباره وارد کن.');
+        } else if (errMsg.includes('FLOOD_WAIT')) {
+          await botSendMessage(msg.chat.id, '⏳ تلگرام این اکانت رو موقتاً محدود کرده. لطفاً بعداً تلاش کن.');
+          deleteLoginState(userId);
+        } else {
+          await botSendMessage(msg.chat.id, format(MSG.loginError, { error: errMsg }), { parseMode: 'Markdown' });
+          activeSessions.delete(session.id);
+          deleteLoginState(userId);
+        }
       }
       return;
     }
