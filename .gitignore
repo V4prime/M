@@ -1,0 +1,11 @@
+node_modules/
+*.db
+*.db-wal
+*.db-shm
+selfbot.db
+session-*.db
+.env
+.env.local
+.DS_Store
+*.log
+fly.toml.bak
