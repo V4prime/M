@@ -491,6 +491,7 @@ async function getClientForSession(session, fresh = false) {
 const pendingLogins = new Map(); // sessionId -> { phone, sendCodeResult, code, password }
 
 async function startLoginFlow(session, phone) {
+  addLog('info', `startLoginFlow for session ${session.id}, phone ${phone}`);
   // Always start with a fresh client to avoid stale state
   const client = await getClientForSession(session, true);
 
@@ -503,9 +504,11 @@ async function startLoginFlow(session, phone) {
     });
     // If we reach here, login succeeded without code (cached session valid)
     const sessionString = await client.exportSession();
+    addLog('success', `startLoginFlow: cached login succeeded for session ${session.id}`);
     return { done: true, session: sessionString };
   } catch (e) {
     const msg = String(e.message || e);
+    addLog('info', `startLoginFlow: code/password required for session ${session.id}: ${msg}`, { stack: e.stack?.split('\n').slice(0, 3) });
     if (msg.includes('CODE_REQUIRED')) {
       // Save pending state so verifyCode can use the same client
       pendingLogins.set(session.id, { phone, code: null, password: null });
@@ -515,11 +518,13 @@ async function startLoginFlow(session, phone) {
       pendingLogins.set(session.id, { phone, code: null, password: null });
       return { needs: 'password' };
     }
+    addLog('error', `startLoginFlow failed: ${msg}`, { stack: e.stack?.split('\n').slice(0, 5) });
     throw e;
   }
 }
 
 async function verifyCode(session, code) {
+  addLog('info', `verifyCode for session ${session.id}`);
   // Use the same client that sent the code (to avoid re-sending another code)
   const client = await getClientForSession(session);
 
@@ -535,16 +540,20 @@ async function verifyCode(session, code) {
       password: () => Promise.reject(new Error('PASSWORD_REQUIRED')),
     });
     const sessionString = await client.exportSession();
+    addLog('success', `verifyCode: login succeeded for session ${session.id}`);
     pendingLogins.delete(session.id);
     return { done: true, session: sessionString };
   } catch (e) {
     const msg = String(e.message || e);
+    addLog('info', `verifyCode result for session ${session.id}: ${msg}`, { stack: e.stack?.split('\n').slice(0, 3) });
     if (msg.includes('PASSWORD_REQUIRED')) return { needs: 'password' };
+    addLog('error', `verifyCode failed: ${msg}`, { stack: e.stack?.split('\n').slice(0, 5) });
     throw e;
   }
 }
 
 async function verifyPassword(session, password) {
+  addLog('info', `verifyPassword for session ${session.id}`);
   // Use the same client that sent the code
   const client = await getClientForSession(session);
 
@@ -559,9 +568,11 @@ async function verifyPassword(session, password) {
       password: () => Promise.resolve(password),
     });
     const sessionString = await client.exportSession();
+    addLog('success', `verifyPassword: login succeeded for session ${session.id}`);
     pendingLogins.delete(session.id);
     return { done: true, session: sessionString };
   } catch (e) {
+    addLog('error', `verifyPassword failed: ${e.message}`, { stack: e.stack?.split('\n').slice(0, 5) });
     // On error, reset the client so next attempt starts fresh
     activeSessions.delete(session.id);
     throw e;
@@ -586,6 +597,7 @@ async function handleLoginInput(msg, state) {
   const userId = msg.from.id;
   const text = (msg.text || '').trim();
   const PHONE_RE = /^\+?\d{7,15}$/;
+  addLog('info', `handleLoginInput: step=${state.step}, user=${userId}, text=${text}`);
 
   switch (state.step) {
     case 'phone': {
@@ -814,6 +826,7 @@ async function handleCallback(cb) {
   const userId = cb.from.id;
   const msg = cb.message;
   const chatId = msg?.chat.id;
+  addLog('info', `handleCallback: user=${userId}, data=${data}`);
 
   await botAnswerCallback(cb.id).catch(() => {});
   if (data === 'noop') return;
@@ -991,6 +1004,7 @@ async function handleCallback(cb) {
 async function handleMessage(msg) {
   const userId = msg.from?.id;
   if (!userId) return;
+  addLog('info', `handleMessage: user=${userId}, text=${msg.text}`);
 
   upsertUser(userId, msg.from?.username, msg.from?.first_name);
 
@@ -1079,16 +1093,35 @@ app.use(express.json());
 app.get('/', (req, res) => res.json({ ok: true, name: 'telegram-selfbot', version: '2.0.0' }));
 app.get('/health', (req, res) => res.json({ ok: true, ts: Date.now() }));
 
+// Endpoint to view recent error logs (no auth, but useful for debugging)
+const recentLogs = [];
+function addLog(level, message, extra) {
+  const entry = { ts: new Date().toISOString(), level, message, extra };
+  recentLogs.push(entry);
+  if (recentLogs.length > 100) recentLogs.shift();
+  console.log(`[${entry.ts}] [${level}] ${message}`, extra || '');
+}
+app.get('/logs', (req, res) => {
+  const limit = parseInt(req.query.limit || '50', 10);
+  res.json({ logs: recentLogs.slice(-limit) });
+});
+app.delete('/logs', (req, res) => {
+  recentLogs.length = 0;
+  res.json({ ok: true });
+});
+
 app.post(`/webhook/${BOT_TOKEN}`, async (req, res) => {
   const update = req.body;
   res.json({ ok: true });
   try {
+    addLog('info', `Update received: ${update.update_id}`, update.message ? { text: update.message.text, from: update.message.from?.id } : update.callback_query ? { data: update.callback_query.data, from: update.callback_query.from?.id } : {});
     if (update.message) {
       await handleMessage(update.message);
     } else if (update.callback_query) {
       await handleCallback(update.callback_query);
     }
   } catch (e) {
+    addLog('error', `Update error: ${e.message}`, { stack: e.stack?.split('\n').slice(0, 5) });
     console.error('Update error:', e);
   }
 });
