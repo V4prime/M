@@ -1,0 +1,19 @@
+{
+  "name": "telegram-selfbot",
+  "version": "1.0.0",
+  "description": "Telegram Self-Bot Manager on Fly.io",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "@mtcute/node": "^0.32.1",
+    "better-sqlite3": "^12.0.0",
+    "express": "^4.21.0"
+  },
+  "allowScripts": {
+    "better-sqlite3@12.11.1": true
+  }
+}
